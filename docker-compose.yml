@@ -1,0 +1,78 @@
+version: '3.8'
+
+# Define custom network for inter-service communication
+networks:
+  feedback_net:
+    driver: bridge
+
+# Define persistent volume for MySQL data
+volumes:
+  mysql_data:
+
+services:
+  # ------------------------------------
+  # 1. Database Tier (MySQL)
+  # ------------------------------------
+  db:
+    image: mysql:8.0
+    container_name: db_feedback
+    restart: always
+    environment:
+      # These variables are read by the MySQL official image
+      MYSQL_ROOT_PASSWORD: root_password_secure
+      MYSQL_DATABASE: feedback_db
+      MYSQL_USER: app_user
+      MYSQL_PASSWORD: app_password_secure
+    volumes:
+      # Persistent storage volume
+      - mysql_data:/var/lib/mysql
+      # Initialization script
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - feedback_net
+
+  # ------------------------------------
+  # 2. API Tier (PHP/Nginx Custom Image)
+  # ------------------------------------
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: api_feedback
+    restart: always
+    ports:
+     - "8081:80"  # Map host 8081 to container 80
+    volumes:
+     - ./api:/var/www/html/
+    environment:
+     DB_HOST: db
+     DB_NAME: feedback_db
+     DB_USER: app_user
+     DB_PASS: app_password_secure
+    networks:
+     - feedback_net
+    depends_on:
+     - db
+  
+  # ------------------------------------
+  # 3. Frontend Tier (PHP/Nginx Custom Image)
+  # ------------------------------------
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: frontend_feedback
+    restart: always
+    # The main application port
+    ports:
+      - "8080:80"
+    volumes:
+      - ./frontend:/var/www/html/
+    environment:
+      # API endpoint URL passed to the Frontend PHP script
+      API_URL: http://api # IMPORTANT: Use the service name for container networking
+    networks:
+      - feedback_net
+    depends_on:
+      # Ensure API is ready to serve data before the frontend starts
+      - api

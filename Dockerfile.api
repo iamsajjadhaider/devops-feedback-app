@@ -1,0 +1,17 @@
+# Use Apache with PHP instead of Nginx + PHP-FPM
+FROM php:8.2-apache
+
+# Install MySQL extensions
+RUN docker-php-ext-install pdo pdo_mysql
+
+# Set working directory
+WORKDIR /var/www/html
+
+# Copy API files
+COPY api/index.php /var/www/html/
+COPY api/test.php /var/www/html/
+
+# Enable Apache rewrite module
+RUN a2enmod rewrite
+
+EXPOSE 80
